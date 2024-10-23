@@ -13,13 +13,15 @@ app.use(cors());
 app.use(bodyParser.json());
 
 //MySQL connection
-const db = mysql.createConnection({
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
-
 
 // const db = mysql.createConnection({
 //   host: 'localhost',
@@ -209,8 +211,7 @@ app.post('/register', (req, res) => {
   });
 });
 app.get('/all-users', (req, res) => {
-  const query = 'SELECT * FROM users';
-  db.query(query, (error, results) => {
+  pool.query('SELECT * FROM users', (error, results) => {
     if (error) {
       console.error('Error fetching users:', error);
       return res.status(500).json({ message: 'Error fetching users' });
