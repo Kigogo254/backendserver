@@ -14,12 +14,11 @@ app.use(bodyParser.json());
 
 //MySQL connection
 const pool = mysql.createConnection({
-  host: process.env.pool_HOST,
-  user: process.env.pool_USER,
-  password: process.env.pool_PASSWORD,
-  database: process.env.pool_NAME,
+  host: 'localhost',
+  user: 'rbxqdvmh_viewsformoney_user',
+  password: 'zJSuC_CzBD!?',
+  database: 'rbxqdvmh_viewsformoneydb',
 });
-
 
 // const pool = mysql.createConnection({
 //   host: 'localhost',
