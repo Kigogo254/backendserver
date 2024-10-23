@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
       connection.release();
 
       if (error) {
-        return res.status(500).json({ message: 'Error fetching users', error });
+        return res.status(500).json({ message: 'Error fetching users from db', error });
       }
       // Success message
       const successMessage = `Successfully connected to the database "${process.env.DB_NAME}" with user "${process.env.DB_USER}".`;
