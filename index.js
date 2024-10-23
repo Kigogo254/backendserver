@@ -6,10 +6,10 @@ const app = express();
 
 // MySQL connection pool setup
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: 'viewsformoney.co.ke', // Replace with your actual database host
+  user: 'rbxqdvmh_testuser',
+  password: '#E,pb5[iESrN',
+  database: 'rbxqdvmh_testdb',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
