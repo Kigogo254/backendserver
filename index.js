@@ -3,17 +3,16 @@ const bodyParser = require('body-parser');
 const mysql = require('mysql2');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
-
 require('dotenv').config();
-const app = express();
 
+const app = express();
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-//MySQL connection
-const db = mysql.createPool({
+// MySQL connection pool setup
+const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
@@ -23,35 +22,26 @@ const db = mysql.createPool({
   queueLimit: 0
 });
 
-// const db = mysql.createConnection({
-//   host: 'localhost',
-//   user: 'rbxqdvmh_viewsformoney_user',
-//   password: 'zJSuC_CzBD!?',
-//   database: 'rbxqdvmh_viewsformoneydb',
-
-// });
-db.connect((err) => {
-  if (err) {
-    console.error('Error connecting: ' + err.stack);
-    return;
-  }
-  console.log('Connected as id ' + db.threadId);
-});
-
+// Log DB connection details (optional)
 console.log('DB_HOST:', process.env.DB_HOST);
 console.log('DB_USER:', process.env.DB_USER);
-console.log('DB_PASSWORD:', process.env.DB_PASSWORD);
 console.log('DB_NAME:', process.env.DB_NAME);
-//Connect to MySQL
-// db.connect((err) => {
-// if (err) {
-//   throw err;
-// }
-// console.log('MySQL connected...');
-// }); 
 
+// Home route
 app.get('/', (req, res) => {
   return res.json('From Kigogo Backend');
+});
+
+// Fetch all users
+app.get('/all-users', (req, res) => {
+  const query = 'SELECT * FROM users';
+  pool.query(query, (error, results) => {
+    if (error) {
+      console.error('Error fetching users:', error);
+      return res.status(500).json({ message: 'Error fetching users' });
+    }
+    res.status(200).json(results);
+  });
 });
 
 // Function to validate phone number
@@ -66,7 +56,6 @@ const isValidPassword = (password) => {
 };
 
 // Registration endpoint
-
 app.post('/register', (req, res) => {
   const {
     phone_number,
@@ -95,7 +84,7 @@ app.post('/register', (req, res) => {
 
   // Check if the phone number already exists
   const phoneCheckQuery = 'SELECT * FROM users WHERE phone_number = ?';
-  db.query(phoneCheckQuery, [phone_number], (phoneCheckError, phoneCheckResults) => {
+  pool.query(phoneCheckQuery, [phone_number], (phoneCheckError, phoneCheckResults) => {
     if (phoneCheckError) {
       console.error('Database error while checking phone number:', phoneCheckError);
       return res.status(500).json({ message: 'Error checking phone number.' });
@@ -106,10 +95,8 @@ app.post('/register', (req, res) => {
     }
 
     // Check if the referral code exists
-    let userWithReferralCode;
     const referralQuery = 'SELECT * FROM users WHERE referral_code = ?';
-
-    db.query(referralQuery, [referral_code], (referralError, referralResults) => {
+    pool.query(referralQuery, [referral_code], (referralError, referralResults) => {
       if (referralError) {
         console.error('Database error while checking referral code:', referralError);
         return res.status(500).json({ message: 'Error checking referral code.' });
@@ -120,50 +107,22 @@ app.post('/register', (req, res) => {
         return res.status(400).json({ message: 'Invalid referral code.' });
       }
 
-      userWithReferralCode = referralResults[0];
-
       // Increment the referrals count for the user with the referral code
+      const userWithReferralCode = referralResults[0];
       const updateReferralCountQuery = 'UPDATE users SET referrals = referrals + 1 WHERE id = ?';
-      db.query(updateReferralCountQuery, [userWithReferralCode.id], (updateError) => {
+      pool.query(updateReferralCountQuery, [userWithReferralCode.id], (updateError) => {
         if (updateError) {
           console.error('Database error while updating referrals:', updateError);
           return res.status(500).json({ message: 'Error updating referrals.' });
         }
 
-        // Function to generate a unique referral code
+        // Generate a unique referral code
         const generateReferralCode = () => {
           const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
           const numbers = '0123456789';
           const randomLetters = Array.from({ length: 3 }, () => letters.charAt(Math.floor(Math.random() * letters.length))).join('');
           const randomNumbers = Array.from({ length: 3 }, () => numbers.charAt(Math.floor(Math.random() * numbers.length))).join('');
           return `${randomLetters}${randomNumbers}`;
-        };
-
-        // Generate a unique referral code
-        let newReferralCode;
-        const checkReferralCode = (code, callback) => {
-          const codeCheckQuery = 'SELECT * FROM users WHERE referral_code = ?';
-          db.query(codeCheckQuery, [code], (error, results) => {
-            if (error) {
-              callback(true);
-            } else {
-              callback(results.length > 0);
-            }
-          });
-        };
-
-        // Check for a unique referral code
-        const findUniqueReferralCode = () => {
-          newReferralCode = generateReferralCode();
-          checkReferralCode(newReferralCode, (exists) => {
-            if (exists) {
-              // If the code exists, generate a new one
-              findUniqueReferralCode();
-            } else {
-              // Insert the new user with the unique referral code and referredBy field
-              registerUser(newReferralCode);
-            }
-          });
         };
 
         // Function to insert the new user
@@ -176,11 +135,11 @@ app.post('/register', (req, res) => {
 
             const insertQuery = `
               INSERT INTO users 
-              (phone_number, user_name, password, tiktok_name, youtube_name, instagram_name, referral_code, referredBy, 
+              (phone_number, user_name, password, tiktok_name, youtube_name, instagram_name, referral_code, referrepooly, 
               bonusAmountTL, bonusAmountRefs, bonusAmountTasks, balance, referrals) 
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-            db.query(insertQuery, [
+            pool.query(insertQuery, [
               phone_number,
               user_name,
               hash,
@@ -188,7 +147,7 @@ app.post('/register', (req, res) => {
               youtube_name,
               instagram_name,
               referralCode,
-              referral_code, // referredBy column now stores the code the user joined with
+              referral_code,
               0, // bonusAmountTL
               0, // bonusAmountRefs
               0, // bonusAmountTasks
@@ -199,27 +158,42 @@ app.post('/register', (req, res) => {
                 console.error('Database error while creating user:', insertError);
                 return res.status(500).json({ message: 'Error creating user.', error: insertError });
               }
-              res.status(201).json({ message: 'User created successfully.', referral_code: newReferralCode });
+              res.status(201).json({ message: 'User created successfully.', referral_code: referralCode });
             });
           });
         };
 
         // Start checking for a unique referral code
+        let newReferralCode;
+        const checkReferralCode = (code, callback) => {
+          const codeCheckQuery = 'SELECT * FROM users WHERE referral_code = ?';
+          pool.query(codeCheckQuery, [code], (error, results) => {
+            if (error) {
+              callback(true);
+            } else {
+              callback(results.length > 0);
+            }
+          });
+        };
+
+        const findUniqueReferralCode = () => {
+          newReferralCode = generateReferralCode();
+          checkReferralCode(newReferralCode, (exists) => {
+            if (exists) {
+              findUniqueReferralCode();
+            } else {
+              registerUser(newReferralCode);
+            }
+          });
+        };
+
         findUniqueReferralCode();
       });
     });
   });
 });
-app.get('/all-users', (req, res) => {
-  pool.query('SELECT * FROM users', (error, results) => {
-    if (error) {
-      console.error('Error fetching users:', error);
-      return res.status(500).json({ message: 'Error fetching users' });
-    }
-    res.status(200).json(results);
-  });
-});
 
+// Login endpoint
 app.post('/login', (req, res) => {
   const { phone_number, password } = req.body;
 
@@ -228,9 +202,8 @@ app.post('/login', (req, res) => {
     return res.status(400).json({ message: 'Phone number and password are required.' });
   }
 
-  // Query to find the user by phone number
   const query = 'SELECT * FROM users WHERE phone_number = ?';
-  db.query(query, [phone_number], (error, results) => {
+  pool.query(query, [phone_number], (error, results) => {
     if (error) {
       console.error('Database error during login:', error);
       return res.status(500).json({ message: 'Error during login.' });
@@ -241,8 +214,6 @@ app.post('/login', (req, res) => {
     }
 
     const user = results[0];
-
-    // Compare password with the stored hash
     bcrypt.compare(password, user.password, (err, isMatch) => {
       if (err) {
         return res.status(500).json({ message: 'Error during password comparison.' });
@@ -252,20 +223,18 @@ app.post('/login', (req, res) => {
         return res.status(401).json({ message: 'Invalid phone number or password.' });
       }
 
-      // Successful login: Send back user data (excluding the password)
       const { password, ...userData } = user; // Exclude password from the response
       res.status(200).json({ message: 'Login successful.', user: userData });
     });
   });
 });
 
-
+// Withdraw endpoint
 app.post('/withdraw', (req, res) => {
   const { phone_number, amount } = req.body;
 
-  // Check if the user exists and has enough balance
   const query = 'SELECT * FROM users WHERE phone_number = ?';
-  db.query(query, [phone_number], (error, results) => {
+  pool.query(query, [phone_number], (error, results) => {
     if (error) {
       return res.status(500).json({ message: 'Database error.' });
     }
@@ -281,224 +250,19 @@ app.post('/withdraw', (req, res) => {
       return res.status(400).json({ success: false, message: 'Insufficient balance. Cannot leave less than Ksh. 100.' });
     }
 
-    // Update user balance
-    const updatedBalance = currentBalance - amount;
+    const updateBalance = currentBalance - amount;
     const updateQuery = 'UPDATE users SET balance = ? WHERE phone_number = ?';
-    db.query(updateQuery, [updatedBalance, phone_number], (updateError) => {
+    pool.query(updateQuery, [updateBalance, phone_number], (updateError) => {
       if (updateError) {
         return res.status(500).json({ message: 'Error updating balance.' });
       }
-
-      // Insert the withdrawal into the withdrawals table
-      const insertWithdrawalQuery = `
-        INSERT INTO withdrawals (user_id, phone_number, amount) 
-        VALUES (?, ?, ?)
-      `;
-      const userId = results[0].id; // Assuming the 'users' table has a column 'id'
-
-      db.query(insertWithdrawalQuery, [userId, phone_number, amount], (insertError) => {
-        if (insertError) {
-          return res.status(500).json({ message: 'Error logging withdrawal.' });
-        }
-
-        // If everything is successful, send a success response
-        res.status(200).json({ success: true, message: 'Withdrawal successful.' });
-      });
+      res.status(200).json({ success: true, message: 'Withdrawal successful.' });
     });
   });
 });
 
-app.get('/my-team', (req, res) => {
-  const referralCode = req.query.referral_code; // Get referral code from query
-
-  if (!referralCode) {
-    return res.status(400).json({ message: 'Referral code is required.' });
-  }
-
-  const query = 'SELECT user_name, phone_number FROM users WHERE referredBy = ?';
-  
-  db.query(query, [referralCode], (error, results) => {
-    if (error) {
-      return res.status(500).json({ message: 'Error fetching team members.' });
-    }
-    res.status(200).json(results); // Send back the list of team members
-  });
-});
-
-// Endpoint to fetch teams by referral code
-app.get('/teams', (req, res) => {
-  // Query to get all users without fetching the balance
-  const query = 'SELECT user_name, phone_number, referral_code, referredBy FROM users';
-
-  db.query(query, (error, results) => {
-    if (error) {
-      return res.status(500).json({ message: 'Error fetching users.' });
-    }
-
-    // Organize users into teams based on referredBy and referral_code
-    const teams = {};
-    const leaders = {};
-
-    results.forEach(user => {
-      // If this user has a referral code and no referredBy, they are a potential team leader
-      if (user.referral_code) {
-        leaders[user.referral_code] = user;
-      }
-
-      // If the user has a referredBy value, they are part of a team
-      if (user.referredBy) {
-        if (!teams[user.referredBy]) {
-          teams[user.referredBy] = [];
-        }
-        teams[user.referredBy].push(user);
-      }
-    });
-
-    // Construct the response to include the leader and their team members
-    const teamData = Object.keys(teams).map(referralCode => {
-      const leader = leaders[referralCode] || null; // Find the team leader by referral code
-      const teamMembers = teams[referralCode];
-      return {
-        leader,
-        teamMembers
-      };
-    });
-
-    res.status(200).json(teamData);
-  });
-});
-
-app.post('/deals', (req, res) => {
-  const { dealCode, email, name, phoneNumber, accountName } = req.body;
-
-  // Validate input
-  if (!dealCode || !email || !name || !phoneNumber || !accountName) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
-  }
-
-  // Fetch the user from the database
-  const query = 'SELECT id FROM users WHERE phone_number = ?';
-  db.query(query, [phoneNumber], (error, results) => {
-      if (error) {
-          console.error('Error fetching user:', error);
-          return res.status(500).json({ success: false, message: 'Internal server error.' });
-      }
-
-      if (results.length === 0) {
-          return res.status(400).json({ success: false, message: 'Phone number does not match any user.' });
-      }
-
-      const userId = results[0].id; // Get the user ID
-
-      // Insert the submitted deal into the submitted_deals table
-      const insertQuery = 'INSERT INTO submitted_deals (user_id, deal_code, email, name, phone_number, account_name) VALUES (?, ?, ?, ?, ?, ?)';
-      db.query(insertQuery, [userId, dealCode, email, name, phoneNumber, accountName], (insertError, insertResults) => {
-          if (insertError) {
-              console.error('Error inserting deal:', insertError);
-              return res.status(500).json({ success: false, message: 'Internal server error.' });
-          }
-
-          return res.status(201).json({ success: true, message: 'Deal submitted successfully.' });
-      });
-  });
-});
-
-app.post('/submit-tasks', (req, res) => {
-  const { phone_number } = req.body;
-
-  // Validate the phone_number
-  if (!phone_number) {
-    return res.status(400).json({ success: false, message: 'phone_number is required.' });
-  }
-
-  // Update the submitted status for the user
-  const query = 'UPDATE users SET submitted = ? WHERE phone_number = ?'; // Adjust as needed
-
-  db.query(query, [true, phone_number], (error, results) => {
-    if (error) {
-      console.error('Database error:', error);
-      return res.status(500).json({ success: false, message: 'Error submitting tasks.' });
-    }
-
-    if (results.affectedRows > 0) {
-      // Increase balance by 100 for users whose submitted status is now true
-      const updateBalanceQuery = 'UPDATE users SET balance = balance + 20 WHERE submitted = true';
-
-      db.query(updateBalanceQuery, (balanceError) => {
-        if (balanceError) {
-          console.error('Error updating balance:', balanceError);
-          return res.status(500).json({ success: false, message: 'Error updating balance.' });
-        }
-
-        res.json({ success: true, message: 'Tasks submitted successfully and balance updated.' });
-      });
-    } else {
-      res.json({ success: false, message: 'User not found or tasks already submitted.' });
-    }
-  });
-});
-
-
-app.post('/api/deals', (req, res) => {
-  const { dealCode, email, name, phoneNumber, accountName } = req.body;
-
-  // Validate input
-  if (!dealCode || !email || !name || !phoneNumber || !accountName) {
-    return res.status(400).json({ success: false, message: 'All fields are required.' });
-  }
-
-  const query = 'INSERT INTO deals (dealCode, email, name, phoneNumber, accountName) VALUES (?, ?, ?, ?, ?)';
-
-  db.query(query, [dealCode, email, name, phoneNumber, accountName], (error, results) => {
-    if (error) {
-      console.error('Database error:', error);
-      return res.status(500).json({ success: false, message: 'Error creating deal.' });
-    }
-
-    res.json({ success: true, message: 'Deal created successfully.' });
-  });
-});
-
-
-//mpesa 
-const TokenRoute = require("./routes/token");
-app.use(express.json());
-app.use(cors());
-app.get("/", (req, res) => {
-res.send("Kigogo on the server");
-});
-app.use("/token", TokenRoute);
-
-
-app.post('/claim-bonus', (req, res) => {
-  const { userId } = req.body;
-
-  // Ensure userId is provided
-  if (!userId) {
-    return res.status(400).json({ message: 'User ID is required.' });
-  }
-
-  const updateQuery = `
-    UPDATE users 
-    SET balance = balance + 100,
-        bonusAmountTasks = 0,
-        bonusAmountRefs = 0,
-        bonusAmountTL = 0 
-    WHERE id = ?`;
-
-  db.query(updateQuery, [userId], (error, results) => {
-    if (error) {
-      console.error('Database error while claiming bonus:', error);
-      return res.status(500).json({ message: 'Error claiming bonus.' });
-    }
-
-    res.status(200).json({ message: 'Bonus claimed successfully! Your balance has been updated.' });
-  });
-});
-
+// Start the server
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
-// app.listen();
