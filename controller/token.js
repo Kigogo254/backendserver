@@ -9,7 +9,7 @@ const secret ="2RLiLOGqL2dDfJhE";
 const consumer ="eOTP3mouQOD4sXHU2ll88luUBHBKyoY0";
 const auth = new Buffer.from(`${consumer}:${secret}`).toString("base64");
 await axios.get(
-"https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+"https://sanpoolox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
 {headers: {
 authorization: `Basic ${auth}`,
 }},
@@ -29,8 +29,8 @@ const stkPush = async (req, res) => {
 const shortCode = 174379;
 const phone = req.body.phone.substring(1);
 const amount = req.body.amount;
-const passkey = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919";
-const url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
+const passkey = "bfb279f9aa9bpoolcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919";
+const url = "https://sanpoolox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
 const date = new Date();
 const timestamp =
 date.getFullYear() +
