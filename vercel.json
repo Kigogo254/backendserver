@@ -11,6 +11,11 @@
         "src": "/(.*)",
         "dest": "index.js"
       }
-    ]
+    ],
+    "scripts": {
+  "build": "npm ci && npm run build"
+}
+
+
   }
   
