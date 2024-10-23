@@ -208,7 +208,16 @@ app.post('/register', (req, res) => {
     });
   });
 });
-
+app.get('/all-users', (req, res) => {
+  const query = 'SELECT * FROM users';
+  db.query(query, (error, results) => {
+    if (error) {
+      console.error('Error fetching users:', error);
+      return res.status(500).json({ message: 'Error fetching users' });
+    }
+    res.status(200).json(results);
+  });
+});
 
 app.post('/login', (req, res) => {
   const { phone_number, password } = req.body;
